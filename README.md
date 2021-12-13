@@ -1,27 +1,29 @@
-# 给 Electron 应用加密源码
+# Aplicar código-fonte de criptografia ao Electron
 
-## 为什么会有这个仓库？
+Observação: este repositório ramificado parte do projeto de *toyobayashi* (https://github.com/toyobayashi/electron-asar-encrypt-demo)
 
-众所周知，[Electron](https://electronjs.org) 官方没有提供保护源码的方法。打包一个 Electron 应用，说白了就是[把源码拷到固定的一个地方](http://electronjs.org/docs/tutorial/application-distribution)，比如在 Windows / Linux 下是 `resources/app` 这个目录。运行 Electron 应用时，Electron 就把这个目录当作一个 Node.js 项目去跑里面的 JS 代码。虽然 Electron 认识 ASAR 格式的代码包，即可以把所有的源码打包成一个 `app.asar` 文件放到 `resources` 目录，Electron 把 `app.asar` 当成一个文件夹，跑里面的代码，但是 ASAR 包中的文件是没有加密的，仅仅是把所有的文件拼接成了一个文件再加上了文件头信息，使用官方提供的 `asar` 库很容易把所有的源码从 ASAR 包提取出来，所以起不到加密的效果，只是对于初心者来说想接触到源码多了一点小门槛，稍微懂行一点的完全无压力。
+Correções na tradução para Português serão bem-vindas!
 
-所以我就在思考如何对 ASAR 包进行加密，防止商业源码被一些有心人士轻易篡改或注入一些恶意的代码后再分发。这里提供了一种不需要重新编译 Electron 即可完成加密的思路。
+## Por que existe este repositório？
 
-## 跑起来
+Como todos sabemos, [Electron] (https: electronjs.org) não fornece oficialmente uma forma de proteger o código-fonte. Para empacotar um aplicativo Electron, para ser franco, é [copiar o código-fonte para um local fixo] (http: electronjs.orgdocstutorialapplication-distribution), como o diretório `resourcesapp` no Windows Linux. Ao executar o aplicativo Electron, Electron trata este diretório como um projeto Node.js para executar o código JS nele. Embora Electron reconheça o pacote de código no formato ASAR, ele pode empacotar todo o código-fonte em um arquivo `app.asar` e colocá-lo no diretório` resources`. Electron trata `app.asar` como uma pasta e executa o código dentro, mas ASAR Os arquivos no pacote não são criptografados, apenas juntando todos os arquivos em um arquivo e adicionando as informações do cabeçalho do arquivo. É fácil extrair todo o código-fonte do pacote ASAR usando a biblioteca oficial `asar`. Sem o efeito da criptografia, é que há um pouco mais de limite para que os iniciantes tenham acesso ao código-fonte e não há pressão para ter um pouco mais de conhecimento.
+
+Então, eu estava pensando em como criptografar o pacote ASAR para evitar que o código-fonte comercial seja facilmente adulterado por algumas pessoas interessadas ou injetado algum código malicioso antes da distribuição. Aqui está uma maneira de completar a criptografia sem recompilar o Electron.
+## Iniciando
 
 ``` bash
-git clone https://github.com/toyobayashi/electron-asar-encrypt-demo.git
+git clone https://github.com/maxwellcc/electron-asar-encrypt-demo.git
 cd ./electron-asar-encrypt-demo
-npm install # 复制 electron release 到 test 目录
-npm start # 编译然后启动应用
-npm test # 编译然后跑测试
+npm install 
+npm start 
+npm test 
 ```
 
-## 加密
+## Encriptação
 
-以 AES-256-CBC 为例，先生成密钥保存在本地的文件中，方便 JS 打包脚本导入和 C++ include 内联。
-
+Tome AES-256-CBC como exemplo, primeiro gere a chave e salve-a em um arquivo local para facilitar a importação do script de empacotamento JS e o inlining de inclusão de C++.
 ``` js
-// 这个脚本不会被打包进客户端，本地开发用
+// Este script não será empacotado no cliente, é para desenvolvimento local
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
@@ -29,13 +31,13 @@ const crypto = require('crypto')
 fs.writeFileSync(path.join(__dirname, 'src/key.txt'), Array.prototype.map.call(crypto.randomBytes(32), (v => ('0x' + ('0' + v.toString(16)).slice(-2)))))
 ```
 
-这样就会在 `src` 生成一个 `key.txt` 文件，里面的内容是这样的：
+Isso irá gerar um arquivo `key.txt` em` src`, o conteúdo dentro é assim:
 
 ```
 0x87,0xdb,0x34,0xc6,0x73,0xab,0xae,0xad,0x4b,0xbe,0x38,0x4b,0xf5,0xd4,0xb5,0x43,0xfe,0x65,0x1c,0xf5,0x35,0xbb,0x4a,0x78,0x0a,0x78,0x61,0x65,0x99,0x2a,0xf1,0xbb
 ```
 
-打包时做加密，利用 `asar` 库的 `asar.createPackageWithOptions()` 这个 API：
+Para criptografar ao empacotar, use a API do asar.createPackageWithOptions () da biblioteca asar:
 
 ``` ts
 /// <reference types="node" />
@@ -55,17 +57,17 @@ declare namespace asar {
 export = asar;
 ```
 
-在第三个参数中传入 `transform` 选项，它是一个函数，返回一个 `ReadWriteStream` 可读写流去处理文件，返回 `undefined` 则不对文件做处理。这一步对所有的 JS 文件加密后打进 ASAR 包中。
+No terceiro parâmetro, passe a opção `transform`, que é uma função que retorna um fluxo` ReadWriteStream` legível e gravável para processar o arquivo e retorna `undefined` para não processar o arquivo. Esta etapa criptografa todos os arquivos JS e os insere no pacote ASAR.
 
 ``` js
-// 这个脚本不会被打包进客户端，本地开发用
+// Este script não será empacotado no cliente, é para desenvolvimento local
 
 const crypto = require('crypto')
 const path = require('path')
 const fs = require('fs')
 const asar = require('asar')
 
-// 读取密钥，弄成一个 Buffer
+// Leia a chave e faça um Buffer
 const key = Buffer.from(fs.readFileSync(path.join(__dirname, 'src/key.txt'), 'utf8').trim().split(',').map(v => Number(v.trim())))
 
 asar.createPackageWithOptions(
@@ -75,10 +77,10 @@ asar.createPackageWithOptions(
     unpack: '*.node', // C++ 模块不打包
     transform (filename) {
       if (path.extname(filename) === '.js') {
-        // 生成随机的 16 字节初始化向量 IV
+        // Gerar um vetor de inicialização aleatório de 16 bytes IV
         const iv = crypto.randomBytes(16)
 
-        // 是否已把 IV 拼在了加密后数据的
+        // Você colocou o IV nos dados criptografados
         let append = false
 
         const cipher = crypto.createCipheriv(
@@ -89,7 +91,7 @@ asar.createPackageWithOptions(
         cipher.setAutoPadding(true)
         cipher.setEncoding('base64')
 
-        // 重写 Readable.prototype.push 把 IV 拼在加密后数据的最前面
+        // Reescreva Readable.prototype.push para colocar o IV no topo dos dados criptografados
         const _p = cipher.push
         cipher.push = function (chunk, enc) {
           if (!append && chunk != null) {
@@ -106,19 +108,19 @@ asar.createPackageWithOptions(
 )
 ```
 
-## 主进程解密
+## Descriptografia do processo principal
 
-解密在客户端运行时做，因为 V8 引擎没法运行加密后的 JS，所以必须先解密后再丢给 V8 跑。这里就有讲究了，客户端代码是可以被任何人蹂躏的，所以密钥不能明着写，也不能放配置文件，所以只能下沉到 C++ 里。用 C++ 写一个原生模块实现解密，而且这个模块不能导出解密方法，否则没有意义。另外在 C++ 源码中密钥也不能写死成字符串，因为字符串在编译后的二进制文件中是可以直接找到的。
+A descriptografia é feita quando o cliente está em execução. Como o mecanismo V8 não pode executar o JS criptografado, ele deve ser descriptografado e, em seguida, lançado no V8 para ser executado. Há uma ênfase especial aqui. O código do cliente pode ser destruído por qualquer pessoa, portanto, a chave não pode ser escrita claramente e o arquivo de configuração não pode ser colocado, portanto, só pode ser inserido em C ++. Escreva um módulo nativo em C ++ para obter a descriptografia, e este módulo não pode exportar métodos de descriptografia, caso contrário, não faz sentido. Além disso, a chave não pode ser escrita como string no código-fonte C++, porque a string pode ser encontrada diretamente no arquivo binário compilado.
 
-什么？不导出不是没法用吗？很简单，Hack 掉 Node.js 的 API，保证外部拿不到就 OK，然后直接把这个原生模块当作入口模块，在原生模块里面再 require 一下真正的入口 JS。以下是等价的 JS 逻辑：
+Que? Não adianta se você não exportar? É muito simples. Hackeie a API do Node.js, certifique-se de que está OK se não estiver disponível de fora e, em seguida, use diretamente este módulo nativo como o módulo de entrada e, em seguida, solicite a entrada real JS no módulo nativo . A seguir está a lógica JS equivalente
 
 ``` js
-// 用 C++ 写以下逻辑，可以使密钥被编译进动态库
-// 只有反编译动态库才有可能分析出来
+// Escreva a seguinte lógica em C ++ para fazer a chave ser compilada na biblioteca dinâmica
+// Somente descompilando a biblioteca dinâmica ela pode ser analisada
 
 const moduleParent = module.parent;
 if (module !== process.mainModule || (moduleParent !== Module && moduleParent !== undefined && moduleParent !== null)) {
-  // 如果该原生模块不是入口，就报错退出
+  // Se o módulo nativo não for o ponto de entrada, saia com um erro
   dialog.showErrorBox('Error', 'This program has been changed by others.')
   app.quit()
 }
@@ -128,7 +130,7 @@ const crypto = require('crypto')
 const Module = require('module')
 
 function getKey () {
-  // 在这里内联由 JS 脚本生成的密钥
+  // Inline a chave gerada pelo script JS aqui
   // const unsigned char key[32] = {
   //   #include "key.txt"
   // };
@@ -136,14 +138,14 @@ function getKey () {
 }
 
 function decrypt (body) { // body 是 Buffer
-  const iv = body.slice(0, 16) // 前 16 字节是 IV
-  const data = body.slice(16) // 16 字节以后是加密后的代码
+  const iv = body.slice(0, 16) // Os primeiros 16 bytes são IV
+  const data = body.slice(16) // Depois de 16 bytes é o código criptografado
 
-  // 最好使用原生库来做解密，Node API 存在被拦截的风险
+  // É melhor usar a biblioteca nativa para descriptografar, a API do Node corre o risco de ser interceptada
 
-  // const clearEncoding = 'utf8' // 输出是字符串
-  // const cipherEncoding = 'binary' // 输入是二进制
-  // const chunks = [] // 保存分段的字符串
+  // const clearEncoding = 'utf8' // A saída é uma string
+  // const cipherEncoding = 'binary' // A entrada é binária
+  // const chunks = [] // Salve a string segmentada
   // const decipher = crypto.createDecipheriv(
   //   'aes-256-cbc',
   //   getKey(),
@@ -159,13 +161,13 @@ function decrypt (body) { // body 是 Buffer
 }
 
 const oldCompile = Module.prototype._compile
-// 重写 Module.prototype._compile
-// 原因就不多写了，看下 Node 的源码就知道
+// Reescrever Module.prototype._compile
+// Não vou escrever muito sobre o motivo, basta olhar para o código-fonte do Node.
 Object.defineProperty(Module.prototype, '_compile', {
   enumerable: true,
   value: function (content, filename) {
     if (filename.indexOf('app.asar') !== -1) {
-      // 如果这个 JS 是在 app.asar 里面，就先解密
+      // Se este JS estiver em app.asar, descriptografe-o primeiro
       return oldCompile.call(this, decrypt(Buffer.from(content, 'base64')), filename)
     }
     return oldCompile.call(this, content, filename)
@@ -173,34 +175,34 @@ Object.defineProperty(Module.prototype, '_compile', {
 })
 
 try {
-  // 主进程创建窗口在这里面，如果需要的话把密钥传给 JS，最好不要传
+  // O processo principal cria a janela aqui, se você precisar passar a chave para JS, é melhor não passá-la
   require('./main.js')(getKey()) 
 } catch (err) {
-  // 防止 Electron 报错后不退出
+  // Impedir que o Electron não saia após relatar um erro
   dialog.showErrorBox('Error', err.stack)
   app.quit()
 }
 ```
 
-要使用 C++ 写出上面的代码，有一个问题，如何在 C++ 里拿到 JS 的 `require` 函数呢？
+Para escrever o código acima em C ++, há uma questão: Como obter a função `require` do JS em C ++?
 
-看下 Node 源码就知道，调用 `require` 就是相当于调用 `Module.prototype.require`，所以只要能拿到 `module` 对象，也就能够拿到 `require` 函数。不幸的是，NAPI 没有在模块初始化的回调中暴露 `module` 对象，有人提了 PR 但是官方似乎考虑到某些原因（向 ES Module 标准看齐）并不想暴露 `module`，只暴露了 `exports` 对象，不像 Node CommonJS 模块中 JS 代码被一层函数包裹：
+Olhando para o código-fonte do Node, você sabe que chamar `require` é equivalente a chamar` Module.prototype.require`, então contanto que você possa obter o objeto `module`, você também pode obter a função` require`. Infelizmente, a NAPI não expôs o objeto `módulo` no retorno de chamada de inicialização do módulo. Alguém mencionou o PR. No entanto, o oficial parece considerar alguns motivos (em linha com o padrão do Módulo ES) e não quer expor o` módulo`, apenas O objeto `exports`, ao contrário do código JS no módulo Node CommonJS, é envolvido por uma camada de funções:
 
 ``` js
 function (exports, require, module, __filename, __dirname) {
-  // 自己写的代码在这里
+  // O código escrito por mim está aqui
 }
 ```
 
-仔细翻阅 Node.js 文档，可以在 process 章节里看到有 `global.process.mainModule` 这么个东西，也就是说入口模块是可以从全局拿到的，只要遍历模块的 `children` 数组往下找，对比 `module.exports` 等不等于 `exports`，就可以找到当前原生模块的 `module` 对象。
+Lendo a documentação do Node.js com atenção, você pode ver que há algo como `global.process.mainModule` no capítulo do processo, o que significa que o módulo de entrada pode ser obtido globalmente, basta atravessar o array` children` do módulo e olhe para baixo, Comparando `module.exports` etc. que não são iguais a` extensions`, você pode encontrar o objeto `module` do módulo nativo atual.
 
-先封装一下运行脚本的方法。
+Primeiro, encapsule o método de execução do script.
 
 ``` cpp
 #include <string>
 #include "napi.h"
 
-// 先封装一下脚本运行方法
+// Primeiro encapsule o método de execução do script
 Napi::Value RunScript(Napi::Env& env, const Napi::String& script) {
   napi_value res;
   NAPI_THROW_IF_FAILED(env, napi_run_script(env, script, &res), env.Undefined());
@@ -216,7 +218,7 @@ Napi::Value RunScript(Napi::Env& env, const char* script) {
 }
 ```
 
-`node-addon-api` v3 以上可以直接使用：
+`node-addon-api` v3 e superior podem ser usados ​​diretamente:
 
 ``` cpp
 Napi::Value Napi::Env::RunScript(const char* utf8script);
@@ -224,7 +226,7 @@ Napi::Value Napi::Env::RunScript(const std::string& utf8script);
 Napi::Value Napi::Env::RunScript(Napi::String script);
 ```
 
-然后就可以愉快地 JS in C++ 了。
+Então você pode felizmente JS em C++.
 
 ``` cpp
 Napi::Value GetModuleObject(const Napi::Env& env, const Napi::Object& exports) {
@@ -292,16 +294,16 @@ Napi::Function MakeRequireFunction(const Napi::Env& env, const Napi::Object& mod
 #include <unordered_map>
 
 struct AddonData {
-  // 存 Node 模块引用
+  // Salvar referência do módulo Node
   std::unordered_map<std::string, Napi::ObjectReference> modules;
-  // 存函数引用
+  // Referências de função armazenada
   std::unordered_map<std::string, Napi::FunctionReference> functions;
 };
 
 Napi::Value ModulePrototypeCompile(const Napi::CallbackInfo& info) {
   AddonData* addon_data = static_cast<AddonData*>(info.Data());
   Napi::Function old_compile = addon_data->functions["Module.prototype._compile"].Value();
-  // 这里推荐使用 C/C++ 的库来做解密
+  // Recomenda-se o uso da biblioteca C/C++ para descriptografia
   // ...
 }
 
@@ -318,8 +320,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   Napi::Value module_parent = this_module.Get("parent");
 
   if (this_module != main_module || (module_parent != module_constructor && module_parent != env.Undefined() && module_parent != env.Null())) {
-    // 入口模块不是当前的原生模块，可能会被拦截 API 导致泄露密钥
-    // 弹窗警告后退出
+    // Recomenda-se o uso da biblioteca CC ++ para descriptografia
+    // Sair após aviso pop-up
   }
 
   AddonData* addon_data = env.GetInstanceData<AddonData>();
@@ -339,24 +341,24 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   try {
     require({ Napi::String::New(env, "./main.js") }).Call({ getKey() });
   } catch (const Napi::Error& e) {
-    // 弹窗后退出
+    // Sair após pop-up
     // ...
   }
   return exports;
 }
 
-// 不要分号，NODE_API_MODULE 是个宏
+// Sem ponto e vírgula, NODE_API_MODULE é uma macro
 NODE_API_MODULE(NODE_GYP_MODULE_NAME, Init)
 ```
 
-看到这里可能会问了搞了大半天为什么还要用 C++ 来写 JS 啊，不是明明可以 `RunScript()` 吗？ 前面也已经提到过，直接 runScript 需要把 JS 写死成字符串，在编译后的二进制文件中是原样存在的，密钥会被泄露，用 C++ 来写这些逻辑可以增加反向的难度。
+Quando vejo isso, posso perguntar por que tenho que escrever JS em C ++ por muito tempo. Não é possível usar `RunScript ()`? Conforme mencionado anteriormente, o runScript diretamente precisa escrever JS como uma string, que existe como está no arquivo binário compilado, e a chave vazará. Escrever essa lógica em C ++ pode aumentar a dificuldade de reversão
 
-总结下就是这样的：
+O resumo é assim:
 
-1. `main.node` （已编译） 里面 require `main.js` （已加密）
-2. `main.js` （已加密）里面再 require 其它加密的 JS，创建窗口等等
+1. `main.node` (Compilado) Dentro de require `main.js` (criptografado)
+2. `main.js` （Criptografado) dentro, em seguida, requer outro JS criptografado, crie janelas, etc.
 
-特别注意，入口必须是 main.node，如果不是，则很有可能被攻击者在加载 main.node 之前的 JS 中 hack 掉 Node API 导致密钥泄露。比如这样的入口文件：
+Em particular, a entrada deve ser main.node. Se não for, é muito provável que o invasor hackeará a API do Node no JS antes de main.node e fará com que a chave vaze. Por exemplo, um arquivo de entrada:
 
 ``` js
 const crypto = require('crypto')
@@ -379,10 +381,10 @@ Module.prototype._compile = function (content, filename) {
 process.argv.length = 1
 
 require('./main.node')
-// 或 Module._load('./main.node', module, true)
+// Ou Module._load('./main.node', module, true)
 ```
 
-另外在主进程 JS 中要禁用 Node.js 调试，否则代码是可以在 Chrome 开发者工具中看到的。
+Além disso, a depuração do Node.js deve ser desabilitada no JS do processo principal, caso contrário, o código pode ser visto nas Ferramentas do desenvolvedor do Chrome.
 
 ``` js
 for (let i = 0; i < process.argv.length; i++) {
@@ -392,31 +394,31 @@ for (let i = 0; i < process.argv.length; i++) {
 }
 ```
 
-但这种方法防不住在 main.node 之前加载的脚本中设置 `process.argv.length = 1`，所以关键还是要防止入口文件被改成其它 JS 脚本。
+Mas este método não pode impedir a configuração de `process.argv.length = 1` no script carregado antes de main.node, então a chave é evitar que o arquivo de entrada seja alterado para outros scripts JS.
 
-## 渲染进程解密
+## Descriptografia do processo de renderização
 
-和主进程的逻辑类似，可以利用预定义宏在 C++ 中区分开主进程和渲染进程。为渲染进程再编译出一个 `renderer.node`。渲染进程加载的原生模块必须是 `上下文感知模块`，用 NAPI 写的模块已经是上下文感知的，所以没有问题，如果用 V8 的 API 去写就是不行的。
+Semelhante à lógica do processo principal, macros predefinidas podem ser usadas para distinguir entre o processo principal e o processo de renderização em C ++. Compile um `renderer.node` para o processo de renderização. O módulo nativo carregado pelo processo de renderização deve ser um `módulo sensível ao contexto`. O módulo escrito com NAPI já é sensível ao contexto, então não há problema. Se você usar a API V8 para escrevê-lo, não funcionará.
 
-这里有个限制，不能在 HTML 中直接引用 `<script>` 标签加载 JS，因为 HTML 中的 `<script>` 不走 `Module.prototype._compile`，所以只能在主进程中调用 `browserWindow.webContents.executeJavaScript()` 来为每个窗口最先加载原生模块，然后再 require 其它可能需要解密的 JS 文件。
+Há uma limitação aqui. Você não pode referenciar diretamente a tag `<script>` em HTML para carregar JS, porque o `<script>` em HTML não vai para `Module.prototype._compile`, então` browserWindow só pode ser chamado no processo principal. webContents.executeJavaScript () `para carregar o módulo nativo para cada janela primeiro e, em seguida, requerer outros arquivos JS que podem precisar ser descriptografados.
 
-## 局限性
+## Limitações
 
-* 必须开启 `nodeIntegration` 选项。也不能使用 `preload` 预加载脚本，因为这样原生模块会找不到自身 `module` 实例，也就无法使用 `require`
-* 只能加密 JS，不能加密其它类型的文件，如 JSON、图片资源等
-* 所有不走 `Module.prototype._compile` 的 JS 加载方法都不能加载加密后的 JS，例如依赖 HTML `<script>` 标签的脚本加载方式失效，Webpack 动态导入 `import()` 失效
-* 如果 JS 文件很多，解密造成的性能影响较大，下面会说如何减少需要加密的 JS
-* 不能使用纯 JS 实现，必须要 C++ 编译关键的密钥和解密方法
-* 不能做成收费应用
-* 不能算绝对安全，反编译原生模块仍然有密钥泄露和加密方法被得知的风险，只是相对于单纯的 ASAR 打包来说稍微提高了一点破解的门槛，源码不是那么容易被接触。如果有人真想蹂躏你的代码，这种方法防御力可能还远远不够
+* A opção `nodeIntegration` deve ser ativada. Também não pode usar `preload` para pré-carregar scripts, porque o módulo nativo não encontrará sua própria instância de` módulo`, então `require` não pode ser usado
+* Só pode criptografar JS, não outros tipos de arquivos, como JSON, recursos de imagem etc.
+* Todos os métodos de carregamento de JS que não usam `Module.prototype._compile` não podem carregar JS criptografado. Por exemplo, métodos de carregamento de script que dependem de tags HTML` <script> `falham e Webpack dynamic import` import () `falha.
+* Se houver muitos arquivos JS, o impacto no desempenho causado pela descriptografia será maior. A seguir, falaremos sobre como reduzir o JS que precisa ser criptografado
+* Não pode ser implementado em JS puro, C ++ deve ser usado para compilar a chave da chave e o método de descriptografia
+* Não pode ser feito em um aplicativo pago
+* Não é absolutamente seguro. Módulos nativos descompilados ainda apresentam o risco de vazamentos de chaves e métodos de criptografia sendo conhecidos, mas em comparação com o empacotamento ASAR puro, o limite para cracking é ligeiramente aumentado e o código-fonte não é tão fácil de ser acessado. Se alguém realmente deseja destruir seu código, esta abordagem pode não ser suficiente para defesa
 
-最有效的方法是改 Electron 源码，重新编译 Electron。但是，动源码技术门槛高，重新编译 Electron 需要科学那什么，而且编译超慢。
+maneira mais eficaz é alterar o código-fonte do Electron e recompilar o Electron. No entanto, o limite para mover a tecnologia do código-fonte é alto, e recompilar o Electron requer ciência, e a compilação é muito lenta.
 
-## 减少需要加密的 JS
+## Reduza o JS que precisa ser criptografado
 
-`node_modules` 里面的 JS 很多，且不需要加密，所以可以单独抽出来一个 `node_modules.asar`，这里面的 JS 不加密。但是这样会给逆向带来更多机会，别人可以在这些 NPM 包中注入他们想要运行的 JS 代码，有风险。
+Existem muitos JS em `node_modules` e não precisam ser criptografados, então você pode extrair um` node_modules.asar` separado, o JS dentro não é criptografado. Mas isso trará mais oportunidades para a engenharia reversa. Outros podem injetar o código JS que desejam executar nesses pacotes NPM, o que é arriscado.
 
-如何让 `require` 找到 `node_modules.asar` 内部的库呢？答案同样是 Hack 掉 Node 的 API。
+Como fazer `require` encontrar as bibliotecas dentro de` node_modules.asar`? A resposta também é hackear a API do Node.
 
 ``` js
 const path = require('path')
@@ -454,15 +456,15 @@ Module._resolveLookupPaths = originalResolveLookupPaths.length === 2 ? function 
 }
 ```
 
-这样把 `node_modules` 打成 `node_modules.asar` 放到 `resources` 文件夹下和 `app.asar` 同级也 OK 了。
+Desta forma, está OK rotular `node_modules` como` node_modules.asar` e colocá-lo na pasta `resources` e no mesmo nível que` app.asar`.
 
-注意记得 unpack `*.node` 原生模块。
+Lembre-se de descompactar o módulo nativo `.node`
 
-## 总结
+## Resumo
 
-打包时做加密，运行时做解密，解密逻辑放 C++ 里，而且必须是最先加载。
+Criptografia durante o empacotamento e descriptografia durante o tempo de execução. A lógica de descriptografia é colocada em C ++ e deve ser carregada primeiro.
 
-最后关键，不要在预加载的代码中 `console.log`，不要忘了在生产环境关掉 `devTools` 和打开 `nodeIntegration`：
+A última chave é não `console.log` no código pré-carregado e não se esqueça de desligar` devTools` e abrir `nodeIntegration` no ambiente de produção:
 
 ``` js
 new BrowserWindow({
