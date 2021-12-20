@@ -470,9 +470,9 @@ A última chave é não `console.log` no código pré-carregado e não se esque�
 new BrowserWindow({
   // ...
   webPreferences: {
-    nodeIntegration: true, // 渲染进程要使用 require
-    contextIsolation: false, // Electron 12 开始默认值为 true，要关掉
-    devTools: false // 关掉开发者工具，因为开发者工具可以看到渲染进程的代码
+    nodeIntegration: true, // O processo de renderização precisa usar verdadeiro
+    contextIsolation: false, // O Electron 12 começa com o valor padrão verdadeiro, e precisa ser desligado
+    devTools: false // Desligue as ferramentas do desenvolvedor, porque as ferramentas do desenvolvedor podem ver o código do processo de renderização
   }
 })
 ```
